@@ -479,9 +479,41 @@ def svd_comp(d, X, p, rutas):
 
 
 # ------------------------------------------------------------------ 9 · reconstrucción lineal: PCA vs FA vs PPCA
-def _mosaico(filas, lado, k=6):
-    fs = [np.concatenate([np.pad(np.clip(v.reshape(lado, lado, 3), 0, 1), ((0, 1), (0, 1), (0, 0)), constant_values=1) for v in M], 1) for M in filas]
-    return (np.kron(np.concatenate(fs, 0), np.ones((k, k, 1))) * 255).astype(np.uint8)
+def _reconstrucciones_img(d, reconstrucciones, lado_reducido):
+    """Monta de nuevo los parches procesados en su posición dentro de cada imagen."""
+    from PIL import Image
+    from config import CFG
+
+    nombres = list(dict.fromkeys(ref[0] for ref in d.ref if ref[0] in d.recursos))
+    if not nombres:
+        return None
+    lado, lado_parche = CFG.img_lado, CFG.img_parche
+    indices = {nom: [i for i, ref in enumerate(d.ref) if ref[0] == nom and ref[1] >= 0] for nom in nombres}
+    seleccion = [nom for nom in nombres if indices[nom]][:4]
+    imgs, titulos = [], []
+    for nom in seleccion:
+        original = np.asarray(Image.open(d.recursos[nom]).convert("RGB").resize((lado, lado)), dtype=np.uint8)
+        imgs.append(original)
+        titulos.append(f"Original · {nom}")
+        for nombre_metodo, matriz in reconstrucciones.items():
+            lienzo = np.full((lado, lado, 3), 238, dtype=np.uint8)
+            for i in indices[nom]:
+                _, y, x = d.ref[i]
+                pix = np.clip(matriz[i].reshape(lado_reducido, lado_reducido, 3), 0, 1)
+                parche = Image.fromarray((pix * 255).astype(np.uint8)).resize((lado_parche, lado_parche), Image.Resampling.BILINEAR)
+                lienzo[y:min(y + lado_parche, lado), x:min(x + lado_parche, lado)] = np.asarray(parche)[:min(lado_parche, lado-y), :min(lado_parche, lado-x)]
+            imgs.append(lienzo)
+            titulos.append(f"{nombre_metodo} · {nom}")
+    filas = len(seleccion)
+    fig = make_subplots(rows=filas, cols=1 + len(reconstrucciones), subplot_titles=titulos,
+                        horizontal_spacing=.025, vertical_spacing=.08)
+    for r in range(filas):
+        for c in range(1 + len(reconstrucciones)):
+            fig.add_trace(go.Image(z=imgs[r * (1 + len(reconstrucciones)) + c]), row=r + 1, col=c + 1)
+    fig.update_xaxes(visible=False)
+    fig.update_yaxes(visible=False)
+    fig.update_layout(height=min(1100, 270 * filas + 80), margin=dict(l=4, r=4, t=55, b=4))
+    return fig
 
 
 def reconstruccion(d, X, p, rutas):
@@ -507,14 +539,12 @@ def reconstruccion(d, X, p, rutas):
     if d.tipo == "img" and d.granularidad != "archivo":
         sc = StandardScaler().fit(d.X)
         inv = (lambda M: M * sc.scale_ + sc.mean_) if d.escalar else (lambda M: M)
-        sel = np.linspace(0, len(X) - 1, 8).astype(int)
         lado = int(round((X.shape[1] / 3) ** .5))
-        fig = px.imshow(_mosaico([inv(M[sel]) for M in (X, *R.values())], lado))
-        fig.update_xaxes(visible=False)
-        fig.update_yaxes(visible=False)
-        for i, nm in enumerate(nombres):
-            fig.add_annotation(x=-0.01, y=1 - (i + .5) / len(nombres), xref="paper", yref="paper", text=f"<b>{nm}</b>", showarrow=False, xanchor="right")
-        fig.update_layout(title=dict(text="Parches originales (arriba) y reconstruidos por cada método", x=0.01, font_size=15), margin=dict(l=130, r=0, t=45, b=0))
+        fig = _reconstrucciones_img(d, {k: inv(v) for k, v in R.items()}, lado)
+        if fig is None:
+            medias = [inv(M[:8]).reshape(-1, lado, lado, 3).mean(0) for M in (X, *R.values())]
+            fig = _rejilla_img(medias, ["Promedio de parches originales", *[f"Promedio de parches · {k}" for k in R]])
+        fig.update_layout(title=dict(text="Imágenes completas y reconstrucciones por método", x=0.01, font_size=15))
     else:
         i, j = _sub(X)
         zm = float(np.percentile(np.abs(X[np.ix_(i, j)]), 98)) or 1.0
@@ -527,8 +557,8 @@ def reconstruccion(d, X, p, rutas):
         fig.update_layout(coloraxis=dict(colorscale="RdBu_r", cmin=-zm, cmax=zm))
         estilo(fig, "Matriz original y reconstruida (muestras × variables)", h=420)
     mejor = min(mse, key=mse.get)
-    return Res(f"**Reconstrucción con {q} variables latentes**: se comprime cada muestra a {q} números y se vuelve a expandir. La primera fila/panel es el original; "
-               f"el resto, lo que recupera cada método. El de menor error aquí es **{mejor}**. PCA, FA y PPCA son métodos lineales; "
+    return Res(f"**Reconstrucción con {q} variables latentes**: se comprime cada muestra a {q} números y se vuelve a expandir. En imágenes se muestran originales completos y los parches reconstruidos, montados de nuevo en su posición; "
+               f"si el submuestreo dejó parches fuera, esas zonas aparecen gris claro. El resto compara los métodos; el de menor error aquí es **{mejor}**. PCA, FA y PPCA son métodos lineales; "
                "FA y PPCA incluyen un modelo probabilístico del ruido.",
                figuras=[fig, barras], tabla=tabla, kpis={f"MSE {k}": f"{v:.3f}" for k, v in mse.items()})
 
