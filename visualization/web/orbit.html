@@ -11,7 +11,7 @@ svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
 .ctr{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);text-align:center;z-index:50;pointer-events:none}
 .ctr h2{margin:0;font:italic 400 clamp(26px,4.5vw,44px)/1 var(--serif);letter-spacing:-.02em;color:var(--tinta)}
 .ctr span{font:11px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--grafito)}
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:12px;position:relative}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:12px;position:relative;align-content:start}
 .card{aspect-ratio:3/2;overflow:hidden;position:relative}
 .card img{width:100%;height:100%;object-fit:cover;display:block}
 .card b{position:absolute;left:12px;bottom:9px;color:#fff;font:11px var(--mono);letter-spacing:.1em;text-transform:uppercase;text-shadow:0 1px 8px #000}
@@ -24,19 +24,21 @@ svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
   <div class="ctr"><h2 id="tit"></h2><span id="sub">arrastra · clic para traer al frente</span></div></div>
 <div id="gal"><div class="grid" id="grid"></div></div>
 <script>
-const D = __DATOS__, N = D.imgs.length, $ = id => document.getElementById(id);
+const D = __DATOS__, N = D.imgs.length, G = D.galeria || D.imgs, $ = id => document.getElementById(id);
 tit.textContent = D.titulo;
 if (!N) { document.body.innerHTML = '<div class="vacio">No hay imágenes en datos/imgs/</div>'; }
 const orb = $("orb"), quieto = matchMedia("(prefers-reduced-motion:reduce)").matches;
 const els = D.imgs.map((m, i) => {
-  const e = document.createElement("div"); e.className = "o";
-  e.innerHTML = `<img src="${m.u}" alt="${m.n}" title="${m.n}" loading="lazy" decoding="async">`;
+  const e = document.createElement("div"), image = document.createElement("img"); e.className = "o";
+  image.src = m.u; image.alt = m.n; image.title = m.n; image.loading = "lazy"; image.decoding = "async"; e.append(image);
   e.onmouseenter = () => hover = i; e.onmouseleave = () => hover = -1;
   orb.append(e);
-  const c = document.createElement("div"); c.className = "card";
-  c.innerHTML = `<img src="${m.u}" alt="${m.n}" loading="lazy" decoding="async"><b>${m.n}</b>`;
-  $("grid").append(c);
   return e;
+});
+G.forEach(m => {
+  const c = document.createElement("div"), image = document.createElement("img"), label = document.createElement("b");
+  c.className = "card"; image.src = m.u; image.alt = m.n; image.loading = "lazy"; image.decoding = "async"; label.textContent = m.n;
+  c.append(image, label); $("grid").append(c);
 });
 let rot = 0, hover = -1, drag = null, destino = null, last = performance.now(), rx, ry, cx, cy, S;
 const fi = -8 * Math.PI / 180, wrap = d => ((d + 540) % 360 + 360) % 360 - 180;

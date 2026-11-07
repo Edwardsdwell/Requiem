@@ -1,0 +1,78 @@
+<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<style>/*@base.css*/
+html,body{height:100%;min-height:100%;overflow:hidden;background:var(--papel)}
+body{padding:clamp(16px,3vw,38px);}
+.atlas{height:100%;min-height:540px;display:grid;grid-template-columns:minmax(340px,.82fr) minmax(420px,1.18fr);align-items:center;gap:clamp(18px,3vw,48px);max-width:1500px;margin:auto}
+.copy{position:relative;z-index:2;display:flex;flex-direction:column;align-items:flex-start;gap:clamp(12px,2vh,22px)}
+h1{margin:0;color:var(--tinta);font:400 clamp(48px,6.5vw,92px)/.88 var(--serif);letter-spacing:-.045em}
+h1 i{font-weight:400}
+.copy p{max-width:68ch;margin:0;color:var(--carbon);font:18px/1.55 var(--serif)}
+.stats{display:flex;flex-wrap:wrap;gap:8px 24px;margin-top:4px}
+.stat{display:flex;flex-direction:column;gap:2px}
+.stat b{font:400 clamp(21px,2.2vw,30px)/1 var(--serif);color:var(--carbon);font-variant-numeric:tabular-nums}
+.stat span{font:12px/1.3 var(--mono);color:var(--grafito)}
+.hint{margin-top:2px;color:var(--grafito);font:12px/1.4 var(--mono)}
+.scene{position:relative;width:100%;aspect-ratio:1;max-height:590px;justify-self:center;isolation:isolate}
+#sphere{position:absolute;inset:0;width:100%;height:100%;touch-action:none;cursor:grab}
+#sphere:active{cursor:grabbing}
+.specimen{position:absolute;width:clamp(72px,9vw,126px);aspect-ratio:3/4;object-fit:cover;border:1px solid var(--papel);outline:1px solid var(--linea);filter:grayscale(1) contrast(1.08);z-index:1;transition:filter .5s,transform .8s var(--curva)}
+.specimen:hover{filter:grayscale(0) contrast(1.04);transform:translateY(-5px) rotate(0)!important}
+.s0{left:3%;top:8%;transform:rotate(-8deg);animation:float-a 8s ease-in-out infinite}
+.s1{right:4%;top:6%;transform:rotate(7deg);animation:float-b 9s ease-in-out infinite}
+.s2{left:1%;bottom:9%;transform:rotate(5deg);animation:float-b 8.5s ease-in-out infinite}
+.s3{right:2%;bottom:7%;transform:rotate(-7deg);animation:float-a 9.5s ease-in-out infinite}
+.species{position:absolute;left:50%;bottom:3%;transform:translateX(-50%);z-index:3;min-height:25px;max-width:75%;padding:4px 10px;background:var(--papel);color:var(--carbon);font:12px/1.3 var(--mono);text-align:center;pointer-events:none}
+@keyframes float-a{50%{translate:0 -8px}}
+@keyframes float-b{50%{translate:0 7px}}
+@media(max-width:760px){
+  html,body{height:auto;min-height:100%;overflow:auto}
+  body{padding:16px}
+  .atlas{height:auto;min-height:0;grid-template-columns:1fr;gap:6px}
+  .copy{gap:13px}
+  h1{font-size:clamp(48px,13vw,72px)}
+  .copy p{font-size:16px;max-width:62ch}
+  .scene{width:min(100%,320px);max-height:none;margin:0 auto}
+  .specimen{width:clamp(62px,17vw,94px)}
+  .stats{gap:10px 18px}
+}
+@media(prefers-reduced-motion:reduce){.specimen{animation:none}.specimen:hover{transform:none!important}}
+</style>
+<main class="atlas">
+  <section class="copy" aria-labelledby="titulo">
+    <h1 id="titulo">Un atlas vivo<br><i>de las aves</i></h1>
+    <p>Investigación de biodiversidad mediante análisis multimodal, descubrimiento de agrupamientos, comparación taxonómica y detección de anomalía. Audio, imágenes, texto y coordenadas con 12 algoritmos no supervisados, 13 comparativas original vs procesado, ranking multicriterio y control de calidad de datos.</p>
+    <div class="stats" id="stats"></div>
+    <div class="hint">Arrastra el globo · Pasa sobre una marca para reconocer su registro</div>
+  </section>
+  <section class="scene" aria-label="Globo con observaciones de aves">
+    <canvas id="sphere" aria-label="Mapa giratorio de coordenadas de aves"></canvas>
+    <div id="photos"></div>
+    <div class="species" id="species" aria-live="polite">Cada punto corresponde a una observación geográfica.</div>
+  </section>
+</main>
+<script>
+const D=__DATOS__,cv=document.getElementById('sphere'),ctx=cv.getContext('2d'),out=document.getElementById('species');
+const statData=[[D.eventos,'eventos'],[D.imagenes,'imágenes'],[D.audios,'audios'],[D.puntos,'coordenadas']];
+document.getElementById('stats').replaceChildren(...statData.map(([v,n])=>{const e=document.createElement('div'),b=document.createElement('b'),s=document.createElement('span');e.className='stat';b.textContent=Number(v||0).toLocaleString('es');s.textContent=n;e.append(b,s);return e;}));
+(D.fotos||[]).slice(0,4).forEach((f,i)=>{const im=document.createElement('img');im.className=`specimen s${i}`;im.src=f.u;im.alt=f.n;im.loading='lazy';im.decoding='async';document.getElementById('photos').append(im);});
+const pts=(D.coords||[]).filter(p=>Number.isFinite(p.la)&&Number.isFinite(p.lo)),reduce=!D.animaciones||matchMedia('(prefers-reduced-motion: reduce)').matches;
+let w=1,h=1,dpr=1,rot=-.5,drag=null,pointer=null,last=performance.now(),hot=null;
+const xyz=(lat,lon,ang)=>{lat*=Math.PI/180;lon=lon*Math.PI/180+ang;return [Math.cos(lat)*Math.sin(lon),Math.sin(lat),Math.cos(lat)*Math.cos(lon)];};
+function fit(){const r=cv.getBoundingClientRect();dpr=Math.min(devicePixelRatio||1,1.75);w=r.width;h=r.height;cv.width=Math.round(w*dpr);cv.height=Math.round(h*dpr);ctx.setTransform(dpr,0,0,dpr,0,0);if(reduce)draw(performance.now());}
+new ResizeObserver(fit).observe(cv);fit();
+function draw(now){const dt=Math.min(.05,(now-last)/1000);last=now;if(!drag&&!reduce)rot+=dt*.1;ctx.clearRect(0,0,w,h);const R=Math.min(w,h)*.405,cx=w/2,cy=h/2;
+  ctx.beginPath();ctx.arc(cx,cy,R,0,Math.PI*2);ctx.fillStyle='#FBFAF7';ctx.fill();ctx.save();ctx.clip();
+  ctx.strokeStyle='rgba(27,27,26,.22)';ctx.lineWidth=.7;
+  for(let lat=-60;lat<=60;lat+=30){let on=false;ctx.beginPath();for(let lon=-180;lon<=180;lon+=3){const [x,y,z]=xyz(lat,lon,rot);if(z>0){const px=cx+R*x,py=cy-R*y;on?ctx.lineTo(px,py):ctx.moveTo(px,py);on=true;}else on=false;}ctx.stroke();}
+  for(let lon=-150;lon<180;lon+=30){let on=false;ctx.beginPath();for(let lat=-90;lat<=90;lat+=2){const [x,y,z]=xyz(lat,lon,rot);if(z>0){const px=cx+R*x,py=cy-R*y;on?ctx.lineTo(px,py):ctx.moveTo(px,py);on=true;}else on=false;}ctx.stroke();}
+  hot=null;let best=Infinity;
+  for(const p of pts){const [x,y,z]=xyz(p.la,p.lo,rot);if(z<=0)continue;const px=cx+R*x,py=cy-R*y,rr=2.1+z*1.15;ctx.beginPath();ctx.arc(px,py,rr,0,Math.PI*2);ctx.fillStyle=`rgba(122,31,31,${.42+z*.58})`;ctx.fill();if(pointer){const ds=(px-pointer[0])**2+(py-pointer[1])**2;if(ds<100&&ds<best){best=ds;hot=p;}}}
+  ctx.restore();ctx.beginPath();ctx.arc(cx,cy,R,0,Math.PI*2);ctx.strokeStyle='#1B1B1A';ctx.lineWidth=1;ctx.stroke();
+  out.textContent=hot?.n?`${hot.n} · ${Number(hot.la).toFixed(2)}, ${Number(hot.lo).toFixed(2)}`:'Cada punto corresponde a una observación geográfica.';
+  if(!reduce)requestAnimationFrame(draw);
+}
+if(reduce)draw(performance.now());else requestAnimationFrame(draw);
+cv.onpointerdown=e=>{drag={x:e.clientX,r:rot};pointer=[e.offsetX,e.offsetY];cv.setPointerCapture(e.pointerId);};
+cv.onpointermove=e=>{pointer=[e.offsetX,e.offsetY];if(drag)rot=drag.r+(e.clientX-drag.x)*.008;if(reduce)draw(performance.now());};
+cv.onpointerup=()=>{drag=null;};cv.onpointerleave=()=>{pointer=null;hot=null;out.textContent='Cada punto corresponde a una observación geográfica.';};
+</script>

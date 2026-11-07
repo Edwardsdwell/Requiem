@@ -366,11 +366,13 @@ def explorar(m, tipo, sel):
 
     if tipo == "img":
 
-        widgets.mostrar("orbit.html", {"imgs": [{"n": r.nombre, "u": media.miniatura(r.ruta)} for r in sel[:14]], "titulo": f"{len(sel)} imágenes"}, 540)
+        widgets.mostrar("orbit.html", {"imgs": [{"n": r.nombre, "u": media.miniatura(r.ruta, 300, m.cfg)} for r in sel[:14]],
+                                        "galeria": [{"n": r.nombre, "u": media.miniatura(r.ruta, 180, m.cfg)} for r in sel],
+                                        "titulo": f"{len(sel)} imágenes"}, 540)
 
         if len(sel) > 14:
 
-            st.caption("La órbita y la galería muestran las primeras 14 imágenes.")
+            st.caption("La órbita destaca 14 imágenes; cambia a «Galería» para recorrer toda la colección.")
 
         with st.expander("Explorador de parches"):
 
@@ -427,11 +429,6 @@ def archivo_vivo(m):
     """Muestra una selección ligera de los medios ya sincronizados desde aves_db."""
     from visualization import media
 
-    resumen = m.resumen()
-    c = st.columns(4)
-    for col, etiqueta, valor in zip(c, ("Eventos", "Imágenes listas", "Audios listos", "Coordenadas"),
-                                    (resumen["eventos"], resumen["imagenes_ok"], resumen["audios_ok"], resumen["puntos"])):
-        col.metric(etiqueta, f"{valor:,}")
     st.markdown("### Archivo vivo de aves_db")
     st.caption("Muestras reales de las imágenes, textos, grabaciones y ubicaciones disponibles en la base sincronizada.")
 
@@ -443,7 +440,8 @@ def archivo_vivo(m):
 
     if vista == "Imágenes":
         if imgs:
-            widgets.mostrar("orbit.html", {"imgs": [{"n": r.nombre, "u": media.miniatura(r.ruta, 360, m.cfg)} for r in imgs[:14]],
+            widgets.mostrar("orbit.html", {"imgs": [{"n": r.nombre, "u": media.miniatura(r.ruta, 300, m.cfg)} for r in imgs[:14]],
+                                             "galeria": [{"n": r.nombre, "u": media.miniatura(r.ruta, 180, m.cfg)} for r in imgs],
                                              "titulo": f"{len(imgs):,} imágenes disponibles"}, 440)
         else:
             st.info("No hay archivos de imagen descargados y listos en aves_db.")
@@ -488,6 +486,21 @@ def archivo_vivo(m):
             widgets.mostrar("mapa.html", datos, 600)
         else:
             st.info("No hay coordenadas geográficas en aves_db.")
+
+
+def portada_atlas(m):
+    """Datos reales y ligeros para el globo y las fotografías de la portada."""
+    from visualization import media
+
+    cifras = m.resumen()
+    with m.bd() as con:
+        coords = [dict(la=r["lat"], lo=r["lon"], n=r["species"] or "Observación") for r in con.execute("""
+            SELECT g.lat, g.lon, e.species FROM geo g JOIN events e USING(event_id)
+            WHERE g.lat BETWEEN -90 AND 90 AND g.lon BETWEEN -180 AND 180
+            ORDER BY e.event_id LIMIT 2400""")]
+    fotos = [{"n": r.nombre, "u": media.miniatura(r.ruta, 220, m.cfg)} for r in m.recursos("img")[:6]]
+    return {"eventos": cifras["eventos"], "imagenes": cifras["imagenes_ok"], "audios": cifras["audios_ok"],
+            "puntos": cifras["puntos"], "coords": coords, "fotos": fotos, "animaciones": m.cfg.animaciones}
 
 # ------------------------------------------------------------------ panel por tipo
 def panel(m, tipo, prep, max_m):
@@ -870,18 +883,9 @@ def render(m):
         m.cfg.animaciones = st.checkbox("Animaciones", m.cfg.animaciones)
 
     if m.cfg.animaciones:
-
         widgets.mostrar("fx.html", alto=0)
 
-        widgets.mostrar("hero.html", {"palabras": [x.upper() for x in loaders.NOMBRES.values()],
-
-                                      "subtitulo": "Investigación de biodiversidad mediante análisis multimodal, descubrimiento de agrupamientos, comparación taxonómica y detección de anomalía. Audio, imágenes, texto y coordenadas con 12 algoritmos no supervisados, 13 comparativas original vs procesado, ranking multicriterio y control de calidad de datos."}, 190)
-
-    else:
-
-        st.title("Descubrimiento de patrones en biodiversidad")
-
-        st.caption("Aprendizaje no supervisado multimodal · Análisis de especies · Detección de anomalías")
+    widgets.mostrar("atlas.html", portada_atlas(m), 760)
 
     protegido(archivo_vivo, m)
 
