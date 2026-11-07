@@ -123,7 +123,7 @@ def cargar_config(archivo: str | Path | None = None) -> Config:
 
 
 def secreto(nombre: str, defecto: str | None = None) -> str | None:
-    """Claves API y tokens: solo desde variables de entorno o `.env`, nunca en el código."""
+    """Lee credenciales del entorno, `.env` local o Streamlit Secrets."""
     if nombre in os.environ:
         return os.environ[nombre]
     env = ROOT / ".env"
@@ -133,6 +133,17 @@ def secreto(nombre: str, defecto: str | None = None) -> str | None:
                 k, v = linea.split("=", 1)
                 if k.strip() == nombre:
                     return v.strip().strip("'\"")
+    try:
+        import streamlit as st
+        from streamlit.errors import StreamlitSecretNotFoundError
+    except ImportError:
+        return defecto
+    try:
+        valor = st.secrets.get(nombre)
+    except StreamlitSecretNotFoundError:
+        return defecto
+    if valor is not None:
+        return str(valor)
     return defecto
 
 

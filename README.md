@@ -35,6 +35,21 @@ cuyas URLs ya están registradas en esa base. Las descargas completadas se guard
 `media_content` de PostgreSQL y en `data_store/`, que está excluido del código versionado;
 si se borra el almacén local, la app puede regenerarlo desde los BLOB de la base.
 
+## Despliegue en Streamlit Community Cloud
+
+1. Seleccione este repositorio, la rama `main` y `app.py` como archivo de entrada.
+2. En **Advanced settings → Secrets**, configure las credenciales como TOML:
+
+```toml
+DATABASE_URL = "postgresql://USUARIO:CONTRASENA@HOST:PUERTO/aves_db"
+USER_AGENT = "aves-dataset/0.2 (correo-de-contacto@ejemplo.com)"
+```
+
+Use la URL de una base PostgreSQL accesible desde Internet y limite su acceso con las
+reglas de red de su proveedor. `127.0.0.1` apunta al contenedor de la app, no al equipo
+local. La carpeta `data_store/` no se publica y el almacenamiento local de Community
+Cloud no es persistente; conserve la fuente y los medios en PostgreSQL.
+
 ## Calidad de datos (pestaña «Calidad e inventario»)
 
 * **Inventario**: registros sincronizados de `aves_db` (audio, imagen, texto y punto) como **válido / inválido / pendiente**, con su motivo e identificador de origen. Filtrable y exportable a CSV.

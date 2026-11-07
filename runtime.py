@@ -9,5 +9,5 @@ def motor():
     from core.engine import Motor
 
     if not CFG.database_url:
-        raise RuntimeError("Configura DATABASE_URL en .env para iniciar el análisis de aves_db.")
+        raise RuntimeError("Configura DATABASE_URL en Streamlit Secrets o en .env para conectar con aves_db.")
     return Motor(CFG)
