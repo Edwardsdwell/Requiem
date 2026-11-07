@@ -498,9 +498,19 @@ def portada_atlas(m):
             SELECT g.lat, g.lon, e.species FROM geo g JOIN events e USING(event_id)
             WHERE g.lat BETWEEN -90 AND 90 AND g.lon BETWEEN -180 AND 180
             ORDER BY e.event_id LIMIT 2400""")]
+        textos = [dict(especie=r["especie"] or "Registro de aves", fuente=r["fuente"] or "aves_db",
+                       texto=" ".join((r["texto"] or "").split())[:220]) for r in con.execute("""
+            SELECT especie, fuente, texto FROM (
+                SELECT e.species AS especie, t.field AS fuente, t.original AS texto
+                FROM texts t LEFT JOIN events e USING(event_id)
+                WHERE TRIM(COALESCE(t.original,''))<>''
+                UNION ALL
+                SELECT species AS especie, source AS fuente, text AS texto
+                FROM species_texts WHERE TRIM(COALESCE(text,''))<>'')
+            ORDER BY especie, fuente LIMIT 80""")]
     fotos = [{"n": r.nombre, "u": media.miniatura(r.ruta, 220, m.cfg)} for r in m.recursos("img")[:6]]
     return {"eventos": cifras["eventos"], "imagenes": cifras["imagenes_ok"], "audios": cifras["audios_ok"],
-            "puntos": cifras["puntos"], "coords": coords, "fotos": fotos, "animaciones": m.cfg.animaciones}
+            "puntos": cifras["puntos"], "coords": coords, "fotos": fotos, "textos": textos, "animaciones": m.cfg.animaciones}
 
 # ------------------------------------------------------------------ panel por tipo
 def panel(m, tipo, prep, max_m):
