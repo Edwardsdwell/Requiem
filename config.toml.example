@@ -1,0 +1,13 @@
+# Copie a config.toml para cambiar los valores por defecto (o use variables NS_<CLAVE>, p. ej. NS_MAX_AUDIO_MB=40).
+max_audio_mb = 80
+max_imagen_mb = 25
+audio_sr = 22050
+audio_ventana_s = 1.0
+audio_salto_s = 0.5
+img_lado = 256
+img_parche = 32
+img_reducido = 8
+max_muestras = 3000
+semilla = 0
+max_trabajadores = 2
+geo_proyeccion = "auto"   # local | esfera | auto

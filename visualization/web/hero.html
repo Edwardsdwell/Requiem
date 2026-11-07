@@ -1,0 +1,38 @@
+<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<style>/*@base.css*/
+body{position:relative}
+canvas{position:absolute;inset:0;width:100%;height:100%;opacity:.6;mask-image:linear-gradient(90deg,transparent,#000 45%);-webkit-mask-image:linear-gradient(90deg,transparent,#000 45%)}
+.c{position:relative;height:100%;display:flex;flex-direction:column;justify-content:center;gap:16px}
+.board{display:flex;gap:4px}
+.t{width:clamp(22px,4.2vw,42px);height:clamp(32px,6vw,58px);background:var(--tinta);color:var(--papel);display:grid;place-items:center;font:clamp(16px,3vw,31px) var(--mono);position:relative}
+.t::after{content:"";position:absolute;left:0;right:0;top:50%;height:1px;background:rgba(244,242,238,.3)}
+.t.f{animation:flip .12s ease-in-out}
+@keyframes flip{50%{transform:scaleY(.12)}}
+p{margin:0;color:var(--grafito);max-width:56ch;font:italic 20px/1.5 var(--serif)}
+</style>
+<canvas id="cv"></canvas>
+<div class="c"><div class="board" id="b" aria-label="Tipos de datos"></div><p id="s"></p></div>
+<script>/*@strands.js*/
+const D = __DATOS__;
+s.textContent = D.subtitulo;
+strands(cv, () => 0, {amp: .55});
+const CH = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789", PAD = Math.max(...D.palabras.map(w => w.length));
+const tiles = [...Array(PAD)].map(() => { const e = document.createElement("div"); e.className = "t"; e.textContent = " "; b.append(e); return e; });
+const quieto = matchMedia("(prefers-reduced-motion:reduce)").matches;
+function mostrar(w) {
+  w = w.padEnd(PAD, " ");
+  tiles.forEach((el, k) => {
+    if (quieto) { el.textContent = w[k]; return; }
+    setTimeout(() => {
+      let n = 0;
+      const id = setInterval(() => {
+        el.textContent = ++n < 8 ? CH[Math.random() * CH.length | 0] : w[k];
+        el.classList.remove("f"); void el.offsetWidth; el.classList.add("f");
+        if (n >= 8) clearInterval(id);
+      }, 120);
+    }, k * 60);
+  });
+}
+let i = 0; mostrar(D.palabras[0]);
+if (!quieto) setInterval(() => mostrar(D.palabras[++i % D.palabras.length]), 2400 + PAD * 60 + 960);
+</script>

@@ -1,0 +1,43 @@
+<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<style>/*@base.css*/
+body{display:flex;flex-direction:column;gap:12px}
+canvas{flex:1;min-height:0;width:100%}
+.pistas{display:flex;gap:6px;flex-wrap:wrap}
+.ctl{display:flex;align-items:center;gap:14px}
+#pp{width:44px;height:44px;border:1px solid var(--tinta);background:none;color:var(--tinta);font-size:14px;cursor:pointer;transition:background .25s,color .25s}
+#pp:hover{background:var(--tinta);color:var(--papel)}
+input[type=range]{flex:1;accent-color:var(--tinta)}
+#t{font:12px var(--mono);color:var(--grafito);min-width:84px;text-align:right}
+.vacio{margin:auto;color:var(--grafito);font-style:italic}
+</style>
+<canvas id="cv"></canvas>
+<div class="pistas" id="ps"></div>
+<div class="ctl"><button id="pp" aria-label="Reproducir">▶</button><input type="range" id="sk" min="0" max="1000" value="0" aria-label="Posición"><span id="t">0:00 / 0:00</span></div>
+<script>/*@strands.js*/
+const D = __DATOS__, A = new Audio(), $ = id => document.getElementById(id);
+let ctx, an, buf;
+const mmss = s => isFinite(s) ? Math.floor(s / 60) + ":" + String(Math.floor(s % 60)).padStart(2, "0") : "0:00";
+strands(cv, () => {
+  if (!an || A.paused) return 0;
+  an.getByteTimeDomainData(buf);
+  let s = 0; for (const v of buf) { const x = (v - 128) / 128; s += x * x; }
+  return Math.min(1, Math.sqrt(s / buf.length) * 3.2);
+}, {amp: .8});
+D.pistas.forEach((p, i) => {
+  const b = document.createElement("button"); b.className = "pill"; b.textContent = p.n; b.onclick = () => elegir(i); ps.append(b);
+});
+function elegir(i) {
+  A.src = D.pistas[i].u; A.currentTime = 0;
+  [...ps.children].forEach((b, j) => b.classList.toggle("on", j === i));
+  pp.textContent = "▶";
+}
+if (D.pistas.length) elegir(0); else document.body.innerHTML = '<div class="vacio">No hay audios (o pesan más de 6 MB) en datos/auds/</div>';
+pp.onclick = () => {
+  if (!ctx) { ctx = new (window.AudioContext || webkitAudioContext)(); an = ctx.createAnalyser(); an.fftSize = 512; buf = new Uint8Array(an.fftSize);
+    const s = ctx.createMediaElementSource(A); s.connect(an); an.connect(ctx.destination); }
+  ctx.resume(); A.paused ? A.play() : A.pause();
+};
+A.onplay = () => pp.textContent = "❚❚"; A.onpause = () => pp.textContent = "▶";
+A.ontimeupdate = () => { sk.value = A.duration ? A.currentTime / A.duration * 1000 : 0; t.textContent = mmss(A.currentTime) + " / " + mmss(A.duration); };
+sk.oninput = () => { if (A.duration) A.currentTime = A.duration * sk.value / 1000; };
+</script>

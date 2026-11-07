@@ -1,0 +1,63 @@
+<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>/*@base.css*/
+#m{position:absolute;inset:0;background:var(--humo)}
+.leaflet-container{font:inherit}
+.leaflet-control-layers,.leaflet-bar a{background:var(--marmol)!important;color:var(--carbon)!important;border-radius:0!important;border:1px solid var(--linea)!important;box-shadow:none!important}
+.grabado{filter:grayscale(1) contrast(1.08) brightness(1.04)}
+.pt .b{position:absolute;width:9px;height:9px;margin:-4.5px 0 0 -4.5px;border-radius:50%;background:var(--tinta);border:1px solid var(--papel);
+  animation:pop .5s var(--d) both var(--curva);transition:width .35s,height .35s,margin .35s,border-radius .35s,background .35s;cursor:pointer}
+.pt .b img{width:100%;height:100%;object-fit:cover;opacity:0;transition:opacity .35s,filter .4s;display:block;filter:grayscale(1)}
+.pt .ic{position:absolute;right:4px;bottom:2px;font-size:12px;opacity:0;transition:opacity .35s;color:#fff;text-shadow:0 1px 4px #000}
+.near .pt .b.m{width:68px;height:68px;margin:-34px 0 0 -34px;border-radius:0;background:var(--marmol);overflow:hidden;border:1px solid var(--tinta)}
+.near .pt .b.m img,.near .pt .b.m .ic{opacity:1}
+.pt:hover{z-index:900!important}
+.pt:hover .b img{filter:none}
+@keyframes pop{from{transform:scale(0);opacity:0}}
+#h{position:absolute;left:14px;top:14px;z-index:1000;padding:8px 14px;background:var(--papel);border:1px solid var(--linea);font:11px var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--grafito);transition:opacity .3s}
+#p{position:absolute;right:12px;top:12px;max-height:calc(100% - 24px);width:min(300px,80%);z-index:1000;padding:16px;background:var(--marmol);border:1px solid var(--tinta);overflow:auto;transform:translateX(120%);transition:transform .5s var(--curva)}
+#p.on{transform:none}
+#p img{width:100%;display:block;margin-bottom:12px;filter:grayscale(1);transition:filter .5s}
+#p img:hover{filter:none}
+#p h3{margin:0 0 2px;font:italic 400 24px/1.1 var(--serif);letter-spacing:-.01em}
+#p small{font:11px var(--mono);letter-spacing:.08em;color:var(--grafito)}
+#p audio{width:100%;margin:12px 0 4px}
+#p p{margin:10px 0 0;color:var(--carbon);line-height:1.6}
+#x{position:absolute;right:10px;top:6px;background:none;border:0;color:var(--carbon);font-size:22px;cursor:pointer}
+</style>
+<div id="m"></div><div id="h"></div>
+<div id="p" aria-live="polite"><button id="x" aria-label="Cerrar">×</button><div id="c"></div></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+const D = __DATOS__, P = D.puntos, $ = id => document.getElementById(id);
+const map = L.map("m", {zoomControl: false}); L.control.zoom({position: "bottomleft"}).addTo(map);
+const OSM = "© <a href='https://www.openstreetmap.org/copyright'>OpenStreetMap</a>";
+const bases = {   // mapas base gratuitos y sin clave
+  "Grabado": L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {maxZoom: 19, className: "grabado", attribution: OSM}),
+  "Calles": L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {maxZoom: 19, attribution: OSM}),
+  "Satélite": L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", {maxZoom: 19, attribution: "Imágenes © Esri, Maxar, Earthstar Geographics"})};
+bases["Grabado"].addTo(map);
+L.control.layers(bases, null, {position: "topright", collapsed: false}).addTo(map);
+if (!P.length) { map.setView([0, 0], 2); $("h").textContent = "No hay coordenadas en datos/coordgeogra/"; }
+else {
+  const lim = L.latLngBounds(P.map(p => [p.la, p.lo]));
+  map.fitBounds(lim, {padding: [60, 60], maxZoom: 16});
+  const zc = Math.min(map.getZoom() + 2, 18);          // desde este zoom se revelan imágenes, audio y texto
+  const hint = () => { const cerca = map.getZoom() >= zc; $("m").classList.toggle("near", cerca);
+    $("h").textContent = cerca ? "Pulsa una tarjeta para ver su imagen, sonido y texto" : `${P.length} puntos · acércate para revelar su contenido`; };
+  const esc = s => String(s).replace(/[&<>]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;"}[c]));
+  P.forEach((p, k) => {
+    const medio = p.i || p.a || p.t;
+    const h = `<div class="b${medio ? " m" : ""}" style="--d:${Math.min(k * 12, 1200)}ms">${p.i ? `<img src="${D.img[p.i]}" alt="" loading="lazy" decoding="async">` : ""}<span class="ic">${p.a ? "♪" : ""}${p.t ? "¶" : ""}</span></div>`;
+    L.marker([p.la, p.lo], {icon: L.divIcon({html: h, className: "pt", iconSize: [0, 0]})}).addTo(map).on("click", () => abrir(p));
+  });
+  function abrir(p) {
+    $("c").innerHTML = (p.i ? `<img src="${D.img[p.i]}" alt="${esc(p.n || p.i)}">` : "") + `<h3>${esc(p.n || "Punto")}</h3><small>${p.la.toFixed(5)}, ${p.lo.toFixed(5)}</small>` +
+      (p.a ? `<audio controls src="${D.audio[p.a]}"></audio>` : "") + (p.t ? `<p>${esc(p.t)}</p>` : "");
+    $("p").classList.add("on");
+    map.flyTo([p.la, p.lo], Math.max(map.getZoom(), zc + 1), {duration: .8});
+  }
+  map.on("zoomend", hint); map.on("click", () => $("p").classList.remove("on")); hint();
+}
+$("x").onclick = () => $("p").classList.remove("on");
+</script>

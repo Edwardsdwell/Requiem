@@ -1,0 +1,16 @@
+<script>
+// Sigue el puntero sobre los botones principales y las tarjetas para el brillo especular.
+(function () {
+  const P = window.parent;
+  if (!P || P.__fx) return;
+  P.__fx = 1;
+  const D = P.document;
+  D.addEventListener("pointermove", e => {
+    D.querySelectorAll('[data-testid="stBaseButton-primary"],.kpi,[data-testid="stVerticalBlockBorderWrapper"]').forEach(b => {
+      const r = b.getBoundingClientRect();
+      b.style.setProperty("--mx", (e.clientX - r.left) + "px");
+      b.style.setProperty("--my", (e.clientY - r.top) + "px");
+    });
+  }, {passive: true});
+})();
+</script>

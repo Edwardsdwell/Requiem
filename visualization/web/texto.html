@@ -1,0 +1,35 @@
+<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<style>/*@base.css*/
+body{display:flex;flex-direction:column;gap:12px;position:relative}
+.docs{display:flex;gap:6px;flex-wrap:wrap}
+#box{flex:1;overflow:auto;font-size:19px;line-height:1.75;color:var(--carbon);white-space:pre-wrap;padding:2px 4px 70px;max-width:64ch}
+.fade{position:absolute;left:0;right:0;bottom:0;height:70px;pointer-events:none;background:linear-gradient(transparent,var(--papel))}
+.vacio{margin:auto;color:var(--grafito);font-style:italic}
+</style>
+<div class="docs" id="ds"></div><div id="box" tabindex="0"></div><div class="fade"></div>
+<script>
+const D = __DATOS__, CH = ".:·+*#%&", R = 90;
+let spans = [], act = new Map(), P = null, fr = 0;
+function poner(i) {
+  [...ds.children].forEach((b, j) => b.classList.toggle("on", j === i));
+  box.textContent = ""; act.clear();
+  spans = [...D.docs[i].t].map(c => { const s = document.createElement("span"); s.textContent = s.dataset.c = c; box.append(s); return s; });
+}
+D.docs.forEach((d, i) => { const b = document.createElement("button"); b.className = "pill"; b.textContent = d.n; b.onclick = () => poner(i); ds.append(b); });
+if (D.docs.length) poner(0); else document.body.innerHTML = '<div class="vacio">No hay textos en datos/texts/</div>';
+box.onpointermove = e => P = {x: e.clientX, y: e.clientY};
+box.onpointerleave = () => P = null;
+(function bucle(now) {
+  if (P) for (const s of spans) {
+    if (!s.dataset.c.trim()) continue;
+    const r = s.getBoundingClientRect(), dx = r.left + r.width / 2 - P.x, dy = r.top + r.height / 2 - P.y;
+    if (dx * dx + dy * dy < R * R) act.set(s, now + 600 + Math.random() * 500);
+  }
+  fr++;
+  for (const [s, hasta] of act) {
+    if (now > hasta) { s.textContent = s.dataset.c; act.delete(s); }
+    else if (fr % 4 === 0) s.textContent = CH[Math.random() * CH.length | 0];
+  }
+  requestAnimationFrame(bucle);
+})(0);
+</script>

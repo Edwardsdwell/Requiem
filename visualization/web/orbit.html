@@ -1,0 +1,78 @@
+<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<style>/*@base.css*/
+.bar{position:absolute;top:6px;right:6px;z-index:200;display:flex;gap:6px}
+#orb,#gal{position:absolute;inset:44px 0 0 0}
+#gal{display:none;overflow:auto;padding:4px}
+body.g #orb{display:none}body.g #gal{display:block}
+.o{position:absolute;left:0;top:0;overflow:hidden;cursor:grab;will-change:transform;border:1px solid var(--tinta)}
+.o img{width:100%;height:100%;object-fit:cover;display:block;pointer-events:none;user-select:none;filter:grayscale(1) contrast(1.1);transition:filter .5s}
+.o:hover img{filter:none}
+svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.ctr{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);text-align:center;z-index:50;pointer-events:none}
+.ctr h2{margin:0;font:italic 400 clamp(26px,4.5vw,44px)/1 var(--serif);letter-spacing:-.02em;color:var(--tinta)}
+.ctr span{font:11px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--grafito)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:12px;position:relative}
+.card{aspect-ratio:3/2;overflow:hidden;position:relative}
+.card img{width:100%;height:100%;object-fit:cover;display:block}
+.card b{position:absolute;left:12px;bottom:9px;color:#fff;font:11px var(--mono);letter-spacing:.1em;text-transform:uppercase;text-shadow:0 1px 8px #000}
+.card::after{content:"";position:absolute;inset:0;pointer-events:none;backdrop-filter:grayscale(1);-webkit-backdrop-filter:grayscale(1);
+  --m:radial-gradient(circle 200px at var(--x,-999px) var(--y,-999px),transparent 0,transparent 30%,#000 100%);mask-image:var(--m);-webkit-mask-image:var(--m)}
+.vacio{position:absolute;inset:0;display:grid;place-items:center;color:var(--grafito);font-style:italic}
+</style>
+<div class="bar"><button class="pill on" id="bo">Órbita</button><button class="pill" id="bg">Galería</button></div>
+<div id="orb"><svg><ellipse id="path" fill="none" stroke="rgba(14,14,13,.35)" stroke-dasharray="2 7" stroke-linecap="round"/></svg>
+  <div class="ctr"><h2 id="tit"></h2><span id="sub">arrastra · clic para traer al frente</span></div></div>
+<div id="gal"><div class="grid" id="grid"></div></div>
+<script>
+const D = __DATOS__, N = D.imgs.length, $ = id => document.getElementById(id);
+tit.textContent = D.titulo;
+if (!N) { document.body.innerHTML = '<div class="vacio">No hay imágenes en datos/imgs/</div>'; }
+const orb = $("orb"), quieto = matchMedia("(prefers-reduced-motion:reduce)").matches;
+const els = D.imgs.map((m, i) => {
+  const e = document.createElement("div"); e.className = "o";
+  e.innerHTML = `<img src="${m.u}" alt="${m.n}" title="${m.n}" loading="lazy" decoding="async">`;
+  e.onmouseenter = () => hover = i; e.onmouseleave = () => hover = -1;
+  orb.append(e);
+  const c = document.createElement("div"); c.className = "card";
+  c.innerHTML = `<img src="${m.u}" alt="${m.n}" loading="lazy" decoding="async"><b>${m.n}</b>`;
+  $("grid").append(c);
+  return e;
+});
+let rot = 0, hover = -1, drag = null, destino = null, last = performance.now(), rx, ry, cx, cy, S;
+const fi = -8 * Math.PI / 180, wrap = d => ((d + 540) % 360 + 360) % 360 - 180;
+function medir() {
+  const w = orb.clientWidth, h = orb.clientHeight;
+  rx = Math.min(340, w * .4); ry = Math.min(110, h * .24); cx = w / 2; cy = h / 2; S = Math.max(64, Math.min(110, w * .12));
+  els.forEach(e => { e.style.width = e.style.height = S + "px"; });
+  const p = $("path"); p.setAttribute("cx", cx); p.setAttribute("cy", cy); p.setAttribute("rx", rx); p.setAttribute("ry", ry);
+  p.setAttribute("transform", `rotate(-8 ${cx} ${cy})`);
+}
+new ResizeObserver(medir).observe(orb); medir();
+function cuadro(now) {
+  const dt = Math.min(.05, (now - last) / 1000); last = now;
+  if (destino !== null) { const d = wrap(destino - rot); rot += d * Math.min(1, dt * 6); if (Math.abs(d) < .3) destino = null; }
+  else if (!drag && !quieto) rot += 12 * (hover >= 0 ? .3 : 1) * dt;
+  els.forEach((e, i) => {
+    const a = (rot + i * 360 / N) * Math.PI / 180, x = rx * Math.cos(a), y = ry * Math.sin(a);
+    const f = (Math.sin(a) + 1) / 2, s = (1 - .55 * (1 - f)) * (i === hover ? 1.08 : 1);
+    e.style.transform = `translate(${cx + x * Math.cos(fi) - y * Math.sin(fi) - S / 2}px,${cy + x * Math.sin(fi) + y * Math.cos(fi) - S / 2}px) scale(${s})`;
+    e.style.zIndex = Math.round(f * 100); e.style.opacity = .5 + .5 * f;
+  });
+  requestAnimationFrame(cuadro);
+}
+if (N) requestAnimationFrame(cuadro);
+orb.onpointerdown = e => { drag = {x: e.clientX, r: rot, m: 0}; destino = null; orb.setPointerCapture(e.pointerId); };
+orb.onpointermove = e => { if (drag) { drag.m = Math.max(drag.m, Math.abs(e.clientX - drag.x)); rot = drag.r + (e.clientX - drag.x) * .35; } };
+orb.onpointerup = e => {
+  const clic = drag && drag.m < 4; drag = null;
+  const el = clic && document.elementFromPoint(e.clientX, e.clientY)?.closest(".o");
+  if (el) destino = 90 - els.indexOf(el) * 360 / N;
+};
+// galería: el color solo aparece cerca del puntero
+const gal = $("gal");
+const cards = () => [...document.querySelectorAll(".card")];
+gal.onpointermove = e => cards().forEach(c => { const r = c.getBoundingClientRect(); c.style.setProperty("--x", e.clientX - r.left + "px"); c.style.setProperty("--y", e.clientY - r.top + "px"); });
+gal.onpointerleave = () => cards().forEach(c => c.style.setProperty("--x", "-999px"));
+$("bo").onclick = () => { document.body.classList.remove("g"); bo.classList.add("on"); bg.classList.remove("on"); };
+$("bg").onclick = () => { document.body.classList.add("g"); bg.classList.add("on"); bo.classList.remove("on"); };
+</script>
