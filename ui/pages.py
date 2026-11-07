@@ -490,6 +490,8 @@ def archivo_vivo(m):
 
 def portada_atlas(m):
     """Datos reales y ligeros para el globo y las fotografías de la portada."""
+    import random
+
     from visualization import media
 
     cifras = m.resumen()
@@ -509,8 +511,17 @@ def portada_atlas(m):
                 FROM species_texts WHERE TRIM(COALESCE(text,''))<>'')
             ORDER BY especie, fuente LIMIT 80""")]
     fotos = [{"n": r.nombre, "u": media.miniatura(r.ruta, 220, m.cfg)} for r in m.recursos("img")[:6]]
+    cantos = []
+    disponibles = m.recursos("audio")
+    seleccionados = random.sample(disponibles, min(4, len(disponibles)))
+    for r in seleccionados:
+        try:
+            cantos.append({"n": r.meta.get("especie") or r.nombre, "u": media.fragmento_audio(r.ruta, 0, 4, m.cfg)})
+        except Exception:  # noqa: BLE001 - los audios ilegibles se omiten sin bloquear la portada
+            continue
     return {"eventos": cifras["eventos"], "imagenes": cifras["imagenes_ok"], "audios": cifras["audios_ok"],
-            "puntos": cifras["puntos"], "coords": coords, "fotos": fotos, "textos": textos, "animaciones": m.cfg.animaciones}
+            "puntos": cifras["puntos"], "coords": coords, "fotos": fotos, "textos": textos,
+            "cantos": cantos, "animaciones": m.cfg.animaciones}
 
 # ------------------------------------------------------------------ panel por tipo
 def panel(m, tipo, prep, max_m):
