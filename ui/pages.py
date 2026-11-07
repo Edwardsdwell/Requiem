@@ -422,6 +422,73 @@ def explorar(m, tipo, sel):
 
         widgets.mostrar("mapa.html", datos, 660)
 
+
+def archivo_vivo(m):
+    """Muestra una selección ligera de los medios ya sincronizados desde aves_db."""
+    from visualization import media
+
+    resumen = m.resumen()
+    c = st.columns(4)
+    for col, etiqueta, valor in zip(c, ("Eventos", "Imágenes listas", "Audios listos", "Coordenadas"),
+                                    (resumen["eventos"], resumen["imagenes_ok"], resumen["audios_ok"], resumen["puntos"])):
+        col.metric(etiqueta, f"{valor:,}")
+    st.markdown("### Archivo vivo de aves_db")
+    st.caption("Muestras reales de las imágenes, textos, grabaciones y ubicaciones disponibles en la base sincronizada.")
+
+    imgs = m.recursos("img")
+    audios = m.recursos("audio")
+    geo = m.recursos("geo")
+    vista = st.segmented_control("Explorar el conjunto", ["Imágenes", "Textos", "Espectros de audio", "Globo de observaciones"],
+                                 default="Imágenes", label_visibility="collapsed", key="inicio_archivo_vista")
+
+    if vista == "Imágenes":
+        if imgs:
+            widgets.mostrar("orbit.html", {"imgs": [{"n": r.nombre, "u": media.miniatura(r.ruta, 360, m.cfg)} for r in imgs[:14]],
+                                             "titulo": f"{len(imgs):,} imágenes disponibles"}, 440)
+        else:
+            st.info("No hay archivos de imagen descargados y listos en aves_db.")
+
+    elif vista == "Textos":
+        with m.bd() as con:
+            filas = con.execute("""SELECT especie, campo, lang, texto FROM (
+                SELECT e.species AS especie, t.field AS campo, t.lang, t.original AS texto
+                FROM texts t LEFT JOIN events e USING(event_id)
+                WHERE TRIM(COALESCE(t.original,''))<>''
+                UNION ALL
+                SELECT species AS especie, source AS campo, lang, text AS texto
+                FROM species_texts WHERE TRIM(COALESCE(text,''))<>'')
+                ORDER BY especie, campo LIMIT 12""").fetchall()
+        if filas:
+            for inicio in range(0, len(filas), 3):
+                for col, fila in zip(st.columns(3), filas[inicio:inicio + 3]):
+                    col.markdown(f"**{fila['especie'] or fila['campo'] or 'Registro de aves_db'}**")
+                    col.caption(" · ".join(x for x in (fila["campo"], fila["lang"]) if x))
+                    col.write(" ".join((fila["texto"] or "").split())[:700])
+        else:
+            st.info("No hay textos descriptivos disponibles en aves_db.")
+
+    elif vista == "Espectros de audio":
+        if audios:
+            for inicio in range(0, min(len(audios), 2), 2):
+                for col, recurso in zip(st.columns(2), audios[inicio:inicio + 2]):
+                    with col:
+                        st.caption(recurso.nombre)
+                        try:
+                            col.audio(media.fragmento_audio_bytes(recurso.ruta, 0, 8, m.cfg), format="audio/wav")
+                            col.plotly_chart(media.espectrograma_fig(recurso.ruta, 0, 8), theme=None, config=CFG_PLOT,
+                                             key=f"inicio_espectro_{recurso.nombre}")
+                        except Exception as e:  # noqa: BLE001 - una pista dañada no oculta el resto del archivo
+                            st.caption(f"No se pudo generar la vista de este audio: {e}")
+        else:
+            st.info("No hay grabaciones descargadas y listas en aves_db.")
+
+    else:
+        if geo:
+            datos = media.explorador_mapa(geo, imgs, audios, m.cfg, max_puntos=160, max_medios_audio=4)
+            widgets.mostrar("mapa.html", datos, 600)
+        else:
+            st.info("No hay coordenadas geográficas en aves_db.")
+
 # ------------------------------------------------------------------ panel por tipo
 def panel(m, tipo, prep, max_m):
 
@@ -815,6 +882,8 @@ def render(m):
         st.title("Descubrimiento de patrones en biodiversidad")
 
         st.caption("Aprendizaje no supervisado multimodal · Análisis de especies · Detección de anomalías")
+
+    protegido(archivo_vivo, m)
 
     with st.expander("Objetivo general y objetivos específicos", expanded=True):
 

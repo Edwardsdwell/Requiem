@@ -134,7 +134,7 @@ def _prop(p, *claves):
     return next((str(k[c]) for c in claves if k.get(c) not in (None, "")), None)
 
 
-def explorador_mapa(recursos_geo, recursos_img=(), recursos_audio=(), cfg=CFG, con=None, max_puntos=1500) -> dict:
+def explorador_mapa(recursos_geo, recursos_img=(), recursos_audio=(), cfg=CFG, con=None, max_puntos=1500, max_medios_audio=24) -> dict:
     """Puntos del mapa con sus medios asociados (imagen y audio del mismo evento en la BD) para `mapa.html`."""
     from data import db
 
@@ -142,14 +142,23 @@ def explorador_mapa(recursos_geo, recursos_img=(), recursos_audio=(), cfg=CFG, c
     ev_img = {r.meta.get("event_id"): r for r in recursos_img if r.meta.get("event_id")}
     ev_aud = {r.meta.get("event_id"): r for r in recursos_audio if r.meta.get("event_id")}
     puntos, img, aud = [], {}, {}
-    for f in c.execute("SELECT g.event_id, g.lat, g.lon, e.species FROM geo g JOIN events e USING(event_id) LIMIT ?", (max_puntos,)):
+    for f in c.execute("""SELECT g.event_id, g.lat, g.lon, e.species,
+        COALESCE(
+            (SELECT t.original FROM texts t WHERE t.event_id=g.event_id AND TRIM(COALESCE(t.original,''))<>'' ORDER BY t.field LIMIT 1),
+            (SELECT s.text FROM species_texts s WHERE s.species=e.species AND TRIM(COALESCE(s.text,''))<>'' ORDER BY s.source LIMIT 1)
+        ) AS texto
+        FROM geo g JOIN events e USING(event_id) ORDER BY e.species, g.event_id LIMIT ?""", (max_puntos,)):
         ri, ra = ev_img.get(f["event_id"]), ev_aud.get(f["event_id"])
         if ri and ri.nombre not in img:
             img[ri.nombre] = miniatura(ri.ruta, 220, cfg)
-        if ra and ra.nombre not in aud:
+        if ra and ra.nombre not in aud and len(aud) < max_medios_audio:
             try:
                 aud[ra.nombre] = fragmento_audio(ra.ruta, 0, 8, cfg)
             except Exception:  # noqa: BLE001 - un audio ilegible no rompe el mapa
                 ra = None
-        puntos.append(dict(la=f["lat"], lo=f["lon"], n=f["species"], i=ri.nombre if ri else None, a=ra.nombre if ra else None, t=None))
+        elif ra and ra.nombre not in aud:
+            ra = None
+        texto = " ".join((f["texto"] or "").split())[:500] or None
+        puntos.append(dict(la=f["lat"], lo=f["lon"], n=f["species"], i=ri.nombre if ri else None,
+                           a=ra.nombre if ra else None, t=texto))
     return dict(puntos=puntos, img=img, audio=aud)
